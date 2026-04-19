@@ -13,6 +13,7 @@ cmake/
 *.map
 *.d
 *.log
+*.json
 
 # --- File di backup ---
 *~
