@@ -27,53 +27,58 @@ int main() {
     tmr_setup_period(TIMER1, 10);
     tmr_setup_period(TIMER3,200);
     
-while(1) {
-    
-    // 7ms function
-    tmr_wait_ms(TIMER2, 7);
-    
-	
-// Blink led 2, nuova versione
-	if (blink_enabled) {	//blink enabled è inizializzato in led_handler.c    
-		if (num_int >= 2) {    
-			led_toggle_ld2();  // funzione nel modulo LED
-			num_int = 0;
+	while(1) {
+		
+		// 7ms function
+		tmr_wait_ms(TIMER2, 7);
+		
+		
+		// Blink led 2
+		if (blink_enabled) {	 
+			if (num_int >= 2) {    
+				led_toggle_ld2();  
+				num_int = 0;
+			}
 		}
-	}
-	
-// UART, nuova versione
-    if (rx_ready) {
-        rx_ready = 0;
+		
+		// uart circular buffer
+		while (uart_available()) {
 
-        char b0 = rx_buffer[0];
-        char b1 = rx_buffer[1];
-        char b2 = rx_buffer[2];
+			char c = uart_read_char();
+			if (c == 0) continue;
 
-        if (b0 == 'L' && b1 == 'D' && b2 == '1') {
-			led_toggle_ld1(); 
-        }
-        if (b0 == 'L' && b1 == 'D' && b2 == '2') {
-            blink_enabled = !blink_enabled;    
-        }
-    }
-	
-	// Button 2, nuova versione 
-	// Comando C= (pulsante T2)	
-	if (button_t2_pressed()) {
-		char msg[8];
-		sprintf(msg, "C=%d", total_chars);
-		uart_send_string(msg); 
-	}
-	
-	// Button 3, nuova versione
-	// Comando D= (pulsante T3)
-	if (button_t3_pressed()) {
-		char msg[8];
-		sprintf(msg, "D=%d", missed_deadlines);
-		uart_send_string(msg);
-	}
-	
-	missed_deadlines += tmr_wait_period(TIMER1);
+			static char b0 = 0, b1 = 0, b2 = 0;
+
+			b0 = b1;
+			b1 = b2;
+			b2 = c;
+
+			if (b0 == 'L' && b1 == 'D' && b2 == '1') {
+				led_toggle_ld1();
+			}
+
+			if (b0 == 'L' && b1 == 'D' && b2 == '2') {
+				blink_enabled = !blink_enabled;
+			}
+		}
+
+		// Button 2
+		// Command C= T2 button	(UART chars)
+		if (button_t2_pressed()) {
+			char msg[8];
+			sprintf(msg, "C=%d", total_chars);
+			uart_send_string(msg); 
+		}
+		
+		// Button 3
+		// Command D= T3 button (missed deadlines)
+		if (button_t3_pressed()) {
+			char msg[8];
+			sprintf(msg, "D=%d", missed_deadlines);
+			uart_send_string(msg);
+		}
+		
+		missed_deadlines += tmr_wait_period(TIMER1);
 
 	}
 }
