@@ -29,14 +29,14 @@ void spi_init_pins(void)
     SPI1CON1bits.MSTEN = 1;   // master mode
     SPI1CON1bits.MODE16 = 0;  // 8-bit mode
 
-    SPI1CON1bits.CKP = 0;     // clock idle low
-    SPI1CON1bits.CKE = 1;     // data changes on rising edge
+/*     SPI1CON1bits.CKP = 0;     // clock idle low
+    SPI1CON1bits.CKE = 1;     // data changes on rising edge */
     SPI1CON1bits.SMP = 0;     // sample in middle
 
-    SPI1CON1bits.SPRE = 0b110; // secondary prescaler 2:1
-    SPI1CON1bits.PPRE = 0b11;  // primary prescaler 1:1
+    SPI1CON1bits.SPRE = 3; //0b110;  secondary prescaler 2:1
+    SPI1CON1bits.PPRE = 3; //0b11;   primary prescaler 1:1
 
-    SPI1STATbits.SPIROV = 0;  // clear overflow
+    //SPI1STATbits.SPIROV = 0;  // clear overflow
     SPI1STATbits.SPIEN = 1;   // enable SPI
 }
 

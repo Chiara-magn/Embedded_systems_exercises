@@ -4,8 +4,7 @@
 #include "config.h"
 #include "timer.h"
 
-
-void imu_init(){
+ void imu_init(){
 
     uart_send_string("IMU INIT START\r\n");
 
@@ -13,21 +12,6 @@ void imu_init(){
     GYR_CS_LAT = 1;
     MAG_CS_LAT = 1;
 
-/*     // check accelerometer ID  from datasheet 1111 1010 -> 0xFA
-    uint8_t ACC_ID = imu_read_chip_id(IMU_ACC);
-    if (ACC_ID != ACC_CHIP_ID){
-        uart_send_string("Incorrect accelerometer Chip ID");
-        return;
-    }
-    else{ uart_send_string("Correct accelerometer Chip ID!");} 
-     // check gyroscope ID from datasheet 0000 1111 -> 0x0F
-    uint8_t GYR_ID = imu_read_chip_id(IMU_GYR);
-    if (GYR_ID != GYR_CHIP_ID){
-        uart_send_string("Incorrect gyroscope Chip ID");
-        return;
-    }
-    else{ uart_send_string("Correct  gyroscope Chip ID!");} 
-*/
     // check magnetometer ID from datasheet -> 0x32
     uint8_t MAG_ID = imu_read_chip_id(IMU_MAG);
     if (MAG_ID != MAG_CHIP_ID){
@@ -40,7 +24,7 @@ void imu_init(){
     imu_set_active(IMU_GYR);
     imu_set_active(IMU_MAG);
 
-}
+} 
 
 static void imu_select(imu_device_t dev)
 {
@@ -89,16 +73,14 @@ uint8_t imu_read_register(imu_device_t dev, uint8_t reg)
 {
     imu_select(dev);
 
-    // 1) invio indirizzo con MSB=1
+    // invio indirizzo con MSB=1
     spi_write(reg | 0x80);
 
-    // 2) dummy read (obbligatorio)
-    spi_write(0x00);   // scarto il valore ricevuto
+    // spi_write(0x00);   // scarto il valore ricevuto */
 
-    // 3) lettura vera
     uint8_t value = spi_write(0x00);
 
-    // 4) deselezione
+    // deselezione
     ACC_CS_LAT = 1;
     GYR_CS_LAT = 1;
     MAG_CS_LAT = 1;
@@ -109,8 +91,7 @@ uint8_t imu_read_register(imu_device_t dev, uint8_t reg)
 
 uint8_t imu_read_chip_id(imu_device_t dev)
 {
-
-    imu_select(dev);
+    //imu_select(dev);
     char msg[64];
     uint8_t id; 
     if (dev == IMU_MAG){
@@ -119,26 +100,8 @@ uint8_t imu_read_chip_id(imu_device_t dev)
     id = imu_read_register(dev, 0x00);}
     sprintf(msg, "ID=0x%02X\r\n", id);
     uart_send_string(msg);
-    return id; 
-    // prova   return imu_read_register(dev, 0x00);
-
-/*    MAG_CS_LAT = 0; // change to the PORT connected to the chip select
-    uint8_t read_addr = 0x40;
-    while (SPI1STATbits.SPITBF == 1);
-    SPI1BUF = read_addr | 0x80; // setting the MSB to 1
-    while (SPI1STATbits.SPIRBF == 0);
-    uint8_t trash = SPI1BUF; // read to prevent buffer overrun. Not useful but has to be 
-    //red because otherwise the next interaction would be an overflow
-    while (SPI1STATbits.SPITBF == 1);
-    SPI1BUF = 0x00; // clocking out zeros so that the other chip can send the 
-    //value
-    while (SPI1STATbits.SPIRBF == 0);
-    uint8_t value_from_chip = SPI1BUF; // get the value from the register
-    MAG_CS_LAT = 1;
-    char msg[64]; 
-    sprintf(msg, "ID=0x%02X\r\n", value_from_chip);
-    uart_send_string(msg);
-    return value_from_chip; */
+    return id;  
+    //return imu_read_register(dev, 0x40);
 }
 
 
@@ -149,7 +112,7 @@ void imu_set_sleep(imu_device_t dev)
 
 void imu_set_active(imu_device_t dev)
 {
-    imu_write_register(dev, 0x4B, 0x00);
+    imu_write_register(dev, 0x4C, 0x00);
 }
 
 // exercise 2
@@ -168,3 +131,21 @@ int16_t imu_read_mag_x(void)
     // Scaling (shift aritmetico)
     return raw >> 3;
 }
+
+
+
+/*     // check accelerometer ID  from datasheet 1111 1010 -> 0xFA
+    uint8_t ACC_ID = imu_read_chip_id(IMU_ACC);
+    if (ACC_ID != ACC_CHIP_ID){
+        uart_send_string("Incorrect accelerometer Chip ID");
+        return;
+    }
+    else{ uart_send_string("Correct accelerometer Chip ID!");} 
+     // check gyroscope ID from datasheet 0000 1111 -> 0x0F
+    uint8_t GYR_ID = imu_read_chip_id(IMU_GYR);
+    if (GYR_ID != GYR_CHIP_ID){
+        uart_send_string("Incorrect gyroscope Chip ID");
+        return;
+    }
+    else{ uart_send_string("Correct  gyroscope Chip ID!");} 
+*/
