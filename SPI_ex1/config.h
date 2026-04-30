@@ -15,38 +15,24 @@
 #define SPI1_SCK_RPIN    108    // RF12 = RP108
 
 // Chip Select
-// Tutto l’IMU nello slot 1 → CS = RB3 prova
 
 #define ACC_CS_LAT     LATBbits.LATB3
-#define ACC_CS_TRIS    TRISBbits.TRISB3
+#define ACC_CS_TRIS    TRISBbits.TRISB3 
 #define ACC_CHIP_ID    0xFA   // letto 0xFD
-
+ 
 #define GYR_CS_LAT     LATBbits.LATB4
-#define GYR_CS_TRIS    TRISBbits.TRISB4
+#define GYR_CS_TRIS    TRISBbits.TRISB4 
 #define GYR_CHIP_ID    0x0F   // letto 0x07
 
-#define MAG_CS_LAT     LATBbits.LATB0 // possibile RB0 
+#define MAG_CS_LAT     LATDbits.LATD6 
+#define MAG_CS_TRIS    TRISDbits.TRISD6 
+#define MAG_CHIP_ID    0x32   // letto 0xFF
+
+/* #define MAG_CS_LAT     LATBbits.LATB0 // possibile RB0 
 #define MAG_CS_TRIS    TRISBbits.TRISB0
-#define MAG_CHIP_ID    0x32   // letto 0xFF
+#define MAG_CHIP_ID    0x32   // letto 0xFF */
 
-/* #define MAG_CS_LAT     LATDbits.LATD6 // possibile RB0 
-#define MAG_CS_TRIS    TRISDbits.TRISD6
-#define MAG_CHIP_ID    0x32   // letto 0xFF
- */
-/* 
-
-// accelerometer
-#define ACC_CS_LAT     LATBbits.LATB3
-#define ACC_CS_TRIS    TRISBbits.TRISB3
-#define ACC_CHIP_ID    0xFA  
-// gyroscope
-#define GYR_CS_LAT     LATBbits.LATB4
-#define GYR_CS_TRIS    TRISBbits.TRISB4
-#define GYR_CHIP_ID    0x0F
-// magnetometer
-#define MAG_CS_LAT     LATDbits.LATD6
-#define MAG_CS_TRIS    TRISDbits.TRISD6
-#define  MAG_CHIP_ID   0x32 */
+ 
 
 #endif
 

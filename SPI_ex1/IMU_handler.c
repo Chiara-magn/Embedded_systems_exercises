@@ -2,6 +2,7 @@
 #include "SPI_handler.h"
 #include "UART_handler.h"
 #include "config.h"
+#include "timer.h"
 
 
 void imu_init(){
@@ -57,22 +58,23 @@ static void imu_select(imu_device_t dev)
     }
 }
 
+void imu_setup(void){
+    // Bosch BMX055 SPI protocol require idle LOW 
+
+    SPI1STATbits.SPIEN = 0;     // disable SPI to change settings
+
+    SPI1CON1bits.CKE = 1; // Output data changes on transition from active to idle
+    SPI1CON1bits.CKP = 0; // Idle state for clock is a low level
+
+    SPI1STATbits.SPIEN = 1;     // re-enable SPI
+
+    tmr_wait_ms(TIMER1, 100);
+}
+
+
 void imu_write_register(imu_device_t dev, uint8_t reg, uint8_t value)
 {
-    switch(dev)
-    {
-        case IMU_ACC:
-            ACC_CS_LAT = 0;
-            break;
-
-        case IMU_GYR:
-            GYR_CS_LAT = 0;
-            break;
-
-        case IMU_MAG:
-            MAG_CS_LAT = 0;
-            break;
-    }
+    imu_select(dev);
 
     spi_write(reg & 0x7F);   // write → MSB = 0
     spi_write(value);
@@ -83,72 +85,60 @@ void imu_write_register(imu_device_t dev, uint8_t reg, uint8_t value)
     MAG_CS_LAT = 1;
 }
 
-
 uint8_t imu_read_register(imu_device_t dev, uint8_t reg)
 {
-        uint8_t value;
-
     imu_select(dev);
 
+    // 1) invio indirizzo con MSB=1
     spi_write(reg | 0x80);
-    value = spi_write(0x00);
 
-    // sempre deseleziona
+    // 2) dummy read (obbligatorio)
+    spi_write(0x00);   // scarto il valore ricevuto
+
+    // 3) lettura vera
+    uint8_t value = spi_write(0x00);
+
+    // 4) deselezione
     ACC_CS_LAT = 1;
     GYR_CS_LAT = 1;
     MAG_CS_LAT = 1;
 
-    return value;
-/*     uint8_t value;
-
-    switch(dev)
-    {
-        case IMU_ACC:
-            ACC_CS_LAT = 0;
-            break;
-
-        case IMU_GYR:
-            GYR_CS_LAT = 0;
-            break;
-
-        case IMU_MAG:
-            MAG_CS_LAT = 0;
-            break;
-    }
-
-    spi_write(reg | 0x80);   // read → MSB = 1
-    value = spi_write(0x00); // clock out
-
-    // deselect
-    ACC_CS_LAT = 1;
-    GYR_CS_LAT = 1;
-    MAG_CS_LAT = 1;
-
-    return value; */
+    return value; 
 }
+
 
 uint8_t imu_read_chip_id(imu_device_t dev)
 {
-/*     char msg[32];
-    uint8_t id = imu_read_register(dev, 0x00);
 
-    sprintf(msg, "CHIP ID = %d\r\n", id);
-    uart_send_string(msg);
-
-    return id;
-
- */
     imu_select(dev);
     char msg[64];
+    uint8_t id; 
     if (dev == IMU_MAG){
-    uint8_t id = imu_read_register(dev, 0x40);}
+    id = imu_read_register(dev, 0x40);}
     else{
-    uint8_t id = imu_read_register(dev, 0x00);}
+    id = imu_read_register(dev, 0x00);}
     sprintf(msg, "ID=0x%02X\r\n", id);
     uart_send_string(msg);
-
-    return id;
+    return id; 
     // prova   return imu_read_register(dev, 0x00);
+
+/*    MAG_CS_LAT = 0; // change to the PORT connected to the chip select
+    uint8_t read_addr = 0x40;
+    while (SPI1STATbits.SPITBF == 1);
+    SPI1BUF = read_addr | 0x80; // setting the MSB to 1
+    while (SPI1STATbits.SPIRBF == 0);
+    uint8_t trash = SPI1BUF; // read to prevent buffer overrun. Not useful but has to be 
+    //red because otherwise the next interaction would be an overflow
+    while (SPI1STATbits.SPITBF == 1);
+    SPI1BUF = 0x00; // clocking out zeros so that the other chip can send the 
+    //value
+    while (SPI1STATbits.SPIRBF == 0);
+    uint8_t value_from_chip = SPI1BUF; // get the value from the register
+    MAG_CS_LAT = 1;
+    char msg[64]; 
+    sprintf(msg, "ID=0x%02X\r\n", value_from_chip);
+    uart_send_string(msg);
+    return value_from_chip; */
 }
 
 

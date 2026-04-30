@@ -14,8 +14,9 @@ int main(void) {
     INTCON2bits.GIE = 1;
     
     timer_init();
-      spi_init_pins();
+    spi_init_pins();
     uart_init();
+    imu_setup();
     imu_init();
 
     // switch to Sleep mode 

@@ -17,6 +17,8 @@ void uart_init(void){
     RPINR18bits.U1RXR = UART1_RX_RPIN;  // metti UART1 in input sul pin fisico RD11 = RPI75
     RPOR0bits.RP64R = 1;                // metti in output sul pin RD0 = RP64 quello che ricevi da UART
     
+    U1STA = 0x00;                       // reset control and status register
+    U1MODE = 0x00;                      // reset mode register
     U1BRG = 468 ;                       //(72000000/16*9600)-1
     // Abilita UART1
     U1MODEbits.UARTEN = 1;

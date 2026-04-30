@@ -10,7 +10,7 @@ typedef enum {
 } imu_device_t;
 
 void imu_init(void);
-
+void imu_setup(void);
 void imu_write_register(imu_device_t dev, uint8_t reg, uint8_t value);
 uint8_t imu_read_register(imu_device_t dev, uint8_t reg);
 uint8_t imu_read_chip_id(imu_device_t dev);
