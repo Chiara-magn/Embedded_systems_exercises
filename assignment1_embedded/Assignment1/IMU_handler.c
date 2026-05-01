@@ -165,3 +165,28 @@ int16_t imu_read_mag_x(void)
     // Scaling (shift aritmetico)
     return raw >> 3;
 }
+
+void imu_read_acc(accel_data_t *data)
+{
+    uint8_t lsb, msb;
+
+    // x axis
+    lsb = imu_read_register(IMU_ACC, 0x02);
+    msb = imu_read_register(IMU_ACC, 0x03);
+    lsb &= 0xF0; // mask per 12 bit
+    data->x = ((int16_t)msb << 8 | lsb) >> 4; 
+    // 4 perche accelerometro 
+    //fornisce 12 bit di dato non 13 (da datasheet)
+
+    // y axis
+    lsb = imu_read_register(IMU_ACC, 0x04);
+    msb = imu_read_register(IMU_ACC, 0x05);
+    lsb &= 0xF0;
+    data->y = ((int16_t)msb << 8 | lsb) >> 4;
+
+    // z axis
+    lsb = imu_read_register(IMU_ACC, 0x06);
+    msb = imu_read_register(IMU_ACC, 0x07);
+    lsb &= 0xF0;
+    data->z = ((int16_t)msb << 8 | lsb) >> 4;
+}

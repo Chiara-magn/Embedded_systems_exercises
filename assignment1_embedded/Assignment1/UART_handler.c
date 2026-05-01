@@ -10,8 +10,8 @@ static volatile int uart_tail = 0;
 
 // Assigmnent1 variables
 static char command_buffer[UART_COMMAND_BUFFER_SZ];
-static uint8_t i     = 0; // counter parsing
-
+static uint8_t i = 0; // counter parsing
+static int current_hz = 10; // default 10 Hz
 // stati per parsing
 typedef enum {
     STATE_WAIT_START,   // Aspetto '$'
@@ -97,7 +97,7 @@ char uart_read_char(void) {
 
 // Assignment1 functions
 
-bool uart_command_buffer(void){ 
+bool uart_command_buffer(void){  // correttezza stringhe
     bool string_ready = false;
 
     while(uart_available()){
@@ -163,7 +163,7 @@ bool uart_command_buffer(void){
                 }
             break;
 
-            case STATE_DATA1:
+            case STATE_DATA1: // controllo che siano cifre
                 if (c >= '0' && c <= '9') {
                     command_buffer[i] = c;
                     i++;
@@ -202,38 +202,35 @@ bool uart_command_buffer(void){
             state = STATE_WAIT_START;
         }
 
-        if (string_ready) break;
+        if (string_ready) break; 
     }
 
     return string_ready;
 }
 
-bool uart_validate_command(void) {
+bool uart_validate_command(void) { // controllo range dati
 
-    int tens = command_buffer[4];
-    int units = command_buffer[5];
+    int tens  = command_buffer[4] - '0'; // -'0' serve per convertire facilmente in ASCII 
+    int units = command_buffer[5] - '0'; // perche '0' vale 48 e 1 49 ecc, 49-48 = 1;
 
-    int data = tens * 10 + units;
+    int data = tens * 10 + units; 
 
-    if (command_buffer[1] == 'B'){
-        if (data <8 | data > 15)
-            uart_send_string("$ERR,1* ");
+    if (command_buffer[1] == 'B'){ // se B allora controllo bandwith
+        if (data <8 || data > 15){
+            uart_send_string("$ERR,1*");
+            return false;}
     }
-    if (command_buffer[1] == 'W'){
-        if (data < 0 | 2<data<5 | 5<data<10 | data > 10)
-            uart_send_string("$ERR,2* ");
+    if (command_buffer[1] == 'H'){ // se H controllo HZ
+        if (data != 0 && data != 1 && data != 2 && data != 5 && data != 10){
+            uart_send_string("$ERR,2*");
+            return false;}
+            current_hz = data;
     }
+    return true;
 }
 
-/*             if(c == '*'){
-                command_buffer[i] = c;
-                command_buffer[i+1] = "/0";
-                string_ready = true
-                return;
-            } // devo terminare la stringa perche è arrivato *
-            else{ // comandi normali che non sono $ o *
-                if (cmd_index < UART_COMMAND_BUFFER_SZ - 1) { // serve per assicurarsi di non scrivere fuori dal buffer
-                    command_buffer[i] = c;
-                    i++;
-                }
-            } */ 
+// Serve per sapere gli hz correnti senza avere una globale 
+int uart_get_hz(void) {
+    return current_hz;
+}
+

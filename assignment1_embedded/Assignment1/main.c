@@ -21,12 +21,26 @@ UART. The initial frequency is 10 Hz.
 and y is the pitch angle in degrees.
  */
 
+#include <math.h>
 #include "timer.h"
 #include "UART_handler.h"
 #include "led_handler.h"
 #include "SPI_handler.h"
 #include "IMU_handler.h"
 
+
+#define RAD_TO_DEG (180.0f / M_PI)
+
+/* void compute_pitch_roll(float ax, float ay, float az,
+                        float *pitch_deg, float *roll_deg)
+{
+    float roll  = atan2f(ay, az);
+    float pitch = atan2f(-ax, sqrtf(ay*ay + az*az));
+
+    *roll_deg  = roll  * RAD_TO_DEG;
+    *pitch_deg = pitch * RAD_TO_DEG;
+}
+ */
 int main(){
 
     tmr_setup_period(TIMER1, 100);   // 100 Hz  periodo = 10 ms
@@ -44,26 +58,26 @@ int main(){
 			}
 		}
 
-        while (uart_available()) {
-            char c = uart_read_char();
-			if (c == 0) continue;
-
-			static char b0 = 0, b1 = 0, b2 = 0;
-
-			b0 = b1;
-			b1 = b2;
-			b2 = c;
-
-			if (b0 == 'L' && b1 == 'D' && b2 == '1') {
-				led_toggle_ld1();
+		if (uart_command_buffer()) {
+			uart_validate_command();
 			}
 
-			if (b0 == 'L' && b1 == 'D' && b2 == '2') {
-				blink_enabled = !blink_enabled;
+			if (uart_get_hz() != 0) {
+				// leggi IMU e invia dati
+				accel_data_t accel;
+				imu_read_acc(&accel);  // passa il puntatore alla struct
+			
+				char msg[64];
+				sprintf(msg, "$ACC,%d,%d,%d*", accel.x, accel.y, accel.z);
+				uart_send_string(msg);
+/* 				float ax = accel.x;
+				float ay = accel.y;
+				float az = accel.z; */
 			}
-        }
 
-        // --- Aspetto la fine del periodo (10 ms totali)
+			tmr_wait_period(TIMER2);
+
+        //  Aspetto la fine del periodo (10 ms totali)
         missed_deadlines += tmr_wait_period(TIMER1);
     }
     return 0;
