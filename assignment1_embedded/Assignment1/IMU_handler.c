@@ -147,3 +147,21 @@ int16_t imu_read_mag_x(void)
     // Scaling (shift aritmetico)
     return raw >> 3;
 }
+
+// Assignment1 functions
+
+int16_t imu_read_mag_x(void)
+{
+    //Leggi i due registri del magnetometro
+    uint8_t lsb = imu_read_register(IMU_MAG, 0x42);
+    uint8_t msb = imu_read_register(IMU_MAG, 0x43);
+
+    // Mask dei 3 bit inutili
+    lsb &= 0xF8;
+
+    // Ricostruzione 16 bit
+    int16_t raw = ((int16_t)msb << 8) | lsb;
+
+    // Scaling (shift aritmetico)
+    return raw >> 3;
+}

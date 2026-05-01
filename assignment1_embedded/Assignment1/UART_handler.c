@@ -4,12 +4,28 @@
 volatile int total_chars = 0; 
 
 // circular buffer global variables
-volatile char uart_buffer[UART_BUFFER_SIZE];
-volatile int uart_head = 0;
-volatile int uart_tail = 0;
+static volatile char uart_buffer[UART_BUFFER_SIZE];
+static volatile int uart_head = 0;
+static volatile int uart_tail = 0;
 
 // Assigmnent1 variables
-char command_buffer[UART_COMMAND_BUFFER_SZ];
+static char command_buffer[UART_COMMAND_BUFFER_SZ];
+static uint8_t i     = 0; // counter parsing
+
+// stati per parsing
+typedef enum {
+    STATE_WAIT_START,   // Aspetto '$'
+    STATE_CMD_TYPE,     // Aspetto B o H
+    STATE_B,            // Aspetto 'B' 
+    STATE_H,            // Aspetto 'H'
+    STATE_COMMA,        // Aspetto ','
+    STATE_DATA1,        // Prima cifra
+    STATE_DATA2,        // Seconda cifra
+    STATE_END           // Aspetto '*'
+} parser_state_t;
+static parser_state_t state = STATE_WAIT_START;
+// nota: devo dividere i due casi per evitare di ottenere BZ o HW
+
 
 // UART initialization function
 void uart_init(void){
@@ -83,12 +99,14 @@ char uart_read_char(void) {
 
 bool uart_command_buffer(void){ 
     bool string_ready = false;
+
     while(uart_available()){
         char c = uart_read_char();
+
         switch (state){
 
-            case STATE_WAITING_DOLLAR:
-                if (c == '$'){ // inizio un nuovo comando perche è arrivato $
+            case STATE_WAIT_START:
+                if (c == '$'){
                     state = STATE_CMD_TYPE;
                     i = 0;
                     command_buffer[i] = c;
@@ -108,7 +126,7 @@ bool uart_command_buffer(void){
                     i++;
                 } 
                 else {
-                    state = STATE_WAITING_DOLLAR;
+                    state = STATE_WAIT_START;
                 }
             break;
 
@@ -119,7 +137,7 @@ bool uart_command_buffer(void){
                     state = STATE_COMMA;
                 } 
                 else {
-                    state = STATE_WAITING_DOLLAR;
+                    state = STATE_WAIT_START;
                 }
             break;
 
@@ -130,9 +148,10 @@ bool uart_command_buffer(void){
                     state = STATE_COMMA;
                 } 
                 else {
-                    state = STATE_WAITING_DOLLAR;
+                    state = STATE_WAIT_START;
                 }
             break;
+
             case STATE_COMMA: 
                 if (c == ',') {
                     command_buffer[i] = c;
@@ -140,18 +159,18 @@ bool uart_command_buffer(void){
                     state = STATE_DATA1;
                 } 
                 else {
-                    state = STATE_WAITING_DOLLAR;
+                    state = STATE_WAIT_START;
                 }
             break;
 
             case STATE_DATA1:
-                if (c >= '0' && c <= '9') { // basta controllare sia una cifra e non una lettera
+                if (c >= '0' && c <= '9') {
                     command_buffer[i] = c;
                     i++;
                     state = STATE_DATA2;
                 } 
                 else {
-                    state = STATE_WAITING_DOLLAR;
+                    state = STATE_WAIT_START;
                 }
             break;
 
@@ -162,7 +181,7 @@ bool uart_command_buffer(void){
                     state = STATE_END;
                 } 
                 else {
-                    state = STATE_WAITING_DOLLAR;
+                    state = STATE_WAIT_START;
                 }
             break;
 
@@ -172,21 +191,38 @@ bool uart_command_buffer(void){
                     i++;
                     command_buffer[i] = '\0';
                     string_ready = true;
-                    state = STATE_WAITING_DOLLAR;
-                } 
-                else {
-                    state = STATE_WAITING_DOLLAR;
                 }
+                state = STATE_WAIT_START;
             break;
         }
-        //protegge da overflow del buffer
+
+        // Protezione overflow
         if (i >= UART_COMMAND_BUFFER_SZ - 1) {
             i = 0;
-            state = STATE_WAITING_DOLLAR;
+            state = STATE_WAIT_START;
         }
 
+        if (string_ready) break;
     }
+
     return string_ready;
+}
+
+bool uart_validate_command(void) {
+
+    int tens = command_buffer[4];
+    int units = command_buffer[5];
+
+    int data = tens * 10 + units;
+
+    if (command_buffer[1] == 'B'){
+        if (data <8 | data > 15)
+            uart_send_string("$ERR,1* ");
+    }
+    if (command_buffer[1] == 'W'){
+        if (data < 0 | 2<data<5 | 5<data<10 | data > 10)
+            uart_send_string("$ERR,2* ");
+    }
 }
 
 /*             if(c == '*'){
