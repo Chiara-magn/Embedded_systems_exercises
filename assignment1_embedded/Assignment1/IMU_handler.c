@@ -109,17 +109,15 @@ uint8_t imu_read_register(imu_device_t dev, uint8_t reg)
 
 uint8_t imu_read_chip_id(imu_device_t dev)
 {
-    //imu_select(dev);
-    char msg[64];
+    //char msg[64];
     uint8_t id; 
     if (dev == IMU_MAG){
     id = imu_read_register(dev, 0x40);}
     else{
     id = imu_read_register(dev, 0x00);}
 /*     sprintf(msg, "ID=0x%02X\r\n", id);
-    uart_send_string(msg); */
+    uart_send_string(msg); (debug)*/ 
     return id;  
-    //return imu_read_register(dev, 0x40);
 }
 
 
@@ -149,21 +147,3 @@ int16_t imu_read_mag_x(void)
     // Scaling (shift aritmetico)
     return raw >> 3;
 }
-
-
-
-/*     // check accelerometer ID  from datasheet 1111 1010 -> 0xFA
-    uint8_t ACC_ID = imu_read_chip_id(IMU_ACC);
-    if (ACC_ID != ACC_CHIP_ID){
-        uart_send_string("Incorrect accelerometer Chip ID");
-        return;
-    }
-    else{ uart_send_string("Correct accelerometer Chip ID!");} 
-     // check gyroscope ID from datasheet 0000 1111 -> 0x0F
-    uint8_t GYR_ID = imu_read_chip_id(IMU_GYR);
-    if (GYR_ID != GYR_CHIP_ID){
-        uart_send_string("Incorrect gyroscope Chip ID");
-        return;
-    }
-    else{ uart_send_string("Correct  gyroscope Chip ID!");} 
-*/
