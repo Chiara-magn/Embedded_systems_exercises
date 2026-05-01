@@ -81,19 +81,115 @@ char uart_read_char(void) {
 
 // Assignment1 functions
 
-char uart_command_buffer(void){ ////  meglio fare direttamente il parsing qua
-    int i = 0; 
-    bool string_ready = false
+bool uart_command_buffer(void){ 
+    bool string_ready = false;
     while(uart_available()){
         char c = uart_read_char();
+        switch (state){
 
-            if (c == 0) continue; // no trasmissione
-            if (c == '$'){ // inizio un nuovo comando perche è arrivato $
-                i = 0;
-                command_buffer[i] = c;
-                i++;
-            }
-            else if(c == '*'){
+            case STATE_WAITING_DOLLAR:
+                if (c == '$'){ // inizio un nuovo comando perche è arrivato $
+                    state = STATE_CMD_TYPE;
+                    i = 0;
+                    command_buffer[i] = c;
+                    i++;
+                }    
+            break;
+            
+            case STATE_CMD_TYPE:
+                if (c == 'B'){
+                    state = STATE_B;
+                    command_buffer[i] = c;
+                    i++;
+                } 
+                else if (c == 'H'){
+                    state = STATE_H;
+                    command_buffer[i] = c;
+                    i++;
+                } 
+                else {
+                    state = STATE_WAITING_DOLLAR;
+                }
+            break;
+
+            case STATE_B:
+                if (c == 'W') {
+                    command_buffer[i] = c;
+                    i++;
+                    state = STATE_COMMA;
+                } 
+                else {
+                    state = STATE_WAITING_DOLLAR;
+                }
+            break;
+
+            case STATE_H:
+                if (c == 'Z') {
+                    command_buffer[i] = c;
+                    i++;
+                    state = STATE_COMMA;
+                } 
+                else {
+                    state = STATE_WAITING_DOLLAR;
+                }
+            break;
+            case STATE_COMMA: 
+                if (c == ',') {
+                    command_buffer[i] = c;
+                    i++;
+                    state = STATE_DATA1;
+                } 
+                else {
+                    state = STATE_WAITING_DOLLAR;
+                }
+            break;
+
+            case STATE_DATA1:
+                if (c >= '0' && c <= '9') { // basta controllare sia una cifra e non una lettera
+                    command_buffer[i] = c;
+                    i++;
+                    state = STATE_DATA2;
+                } 
+                else {
+                    state = STATE_WAITING_DOLLAR;
+                }
+            break;
+
+            case STATE_DATA2:
+                if (c >= '0' && c <= '9') {
+                    command_buffer[i] = c;
+                    i++;
+                    state = STATE_END;
+                } 
+                else {
+                    state = STATE_WAITING_DOLLAR;
+                }
+            break;
+
+            case STATE_END:
+                if (c == '*') {
+                    command_buffer[i] = c;
+                    i++;
+                    command_buffer[i] = '\0';
+                    string_ready = true;
+                    state = STATE_WAITING_DOLLAR;
+                } 
+                else {
+                    state = STATE_WAITING_DOLLAR;
+                }
+            break;
+        }
+        //protegge da overflow del buffer
+        if (i >= UART_COMMAND_BUFFER_SZ - 1) {
+            i = 0;
+            state = STATE_WAITING_DOLLAR;
+        }
+
+    }
+    return string_ready;
+}
+
+/*             if(c == '*'){
                 command_buffer[i] = c;
                 command_buffer[i+1] = "/0";
                 string_ready = true
@@ -104,7 +200,4 @@ char uart_command_buffer(void){ ////  meglio fare direttamente il parsing qua
                     command_buffer[i] = c;
                     i++;
                 }
-            }
-    }
-}
-
+            } */ 
