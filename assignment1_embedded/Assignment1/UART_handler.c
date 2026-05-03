@@ -1,5 +1,6 @@
 #include "config.h"
 #include "UART_handler.h"
+#include "IMU_handler.h"
 
 volatile int total_chars = 0; 
 
@@ -8,10 +9,17 @@ static volatile char uart_buffer[UART_BUFFER_SIZE];
 static volatile int uart_head = 0;
 static volatile int uart_tail = 0;
 
+// circular buffer transmission
+static volatile char tx_buffer[TX_BUFFER_SIZE];
+static volatile int tx_head = 0;
+static volatile int tx_tail = 0;
+
 // Assigmnent1 variables
 static char command_buffer[UART_COMMAND_BUFFER_SZ];
 static uint8_t i = 0; // counter parsing
 static int current_hz = 10; // default 10 Hz
+static int current_bw = 15;
+
 // stati per parsing
 typedef enum {
     STATE_WAIT_START,   // Aspetto '$'
@@ -52,26 +60,33 @@ void uart_init(void){
 // --- UART ISR ---   // chiamata ogni volta che arriva un carattere
 void __attribute__((interrupt, no_auto_psv))
     _U1RXInterrupt(void) {
-
     IFS0bits.U1RXIF = 0;
-
     char c = U1RXREG;
     total_chars++;
-
     int next = (uart_head + 1) % UART_BUFFER_SIZE;   /// avanza head e torna a 0 se buffer finito
- 
     if (next != uart_tail) {             // buffer pieno se next == tail
         uart_buffer[uart_head] = c;      // se c'è spazio salva il carattere
         uart_head = next;
     }
     // altrimenti, se pieno scarta carattere 
 }
-// --- ---
+// ISR per trasmissione con circular buffer
+void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt(void) {
+    IFS0bits.U1TXIF = 0;
+    if (tx_tail != tx_head) {
+        U1TXREG = tx_buffer[tx_tail];
+        tx_tail = (tx_tail + 1) % TX_BUFFER_SIZE;
+    } else {
+        IEC0bits.U1TXIE = 0;       // niente da mandare, disabilita
+    }
+}
 
-void uart_send_char(char c) { 
+// --- ---
+// Ho quella nuova definita sotto con buffer circolare
+/* void uart_send_char(char c) { 
     while (U1STAbits.UTXBF);   // aspetta che il buffer TX sia libero
     U1TXREG = c;               // invio carattere
-}
+} */
 
 void uart_send_string(const char *s) {  // serve per scorrere la stringa
     while (*s) {                        // finche s punta a caratteri, *s != 0, quando punta a \0, *s vale 0 ed esce dal while
@@ -80,20 +95,33 @@ void uart_send_string(const char *s) {  // serve per scorrere la stringa
     }
 }
 
-// circular buffer read functions
+// Verifica se qualcosa da leggere
 int uart_available(void) {
-    return (uart_head != uart_tail); // C'è qualche carattere da leggere
+    IEC0bits.U1RXIE = 0;
+    int head = uart_head;
+    IEC0bits.U1RXIE = 1;
+    return (head != uart_tail); // qualche carattere da leggere
 }
 
 char uart_read_char(void) {
-    if (uart_head == uart_tail) // Se sono uguali non ho caratteri da leggere
-        return 0; // buffer vuoto
+    IEC0bits.U1RXIE = 0;          // aggiunta protezione per variabile globale
+    int head = uart_head;          // faccio una copia locale per sicurezza
+    IEC0bits.U1RXIE = 1;          
+    if (head == uart_tail) return 0;
 
-    char c = uart_buffer[uart_tail];  // prendo il carattere piu vecchio
-    uart_tail = (uart_tail + 1) % UART_BUFFER_SIZE;   // uart tail avanza di 1 se array finito torna a 0 
-    return c;      // (uart_tail+1) = UART_BUFFER_SIZE se siamo alla fine del buffer. quindi uart_tail+1 % BUFFERSIZE == 0
+    char c = uart_buffer[uart_tail]; // prendo il carattere piu vecchio
+    uart_tail = (uart_tail + 1) % UART_BUFFER_SIZE; // uart tail avanza di 1 se array finito torna a 0 
+    return c;  // (uart_tail+1) = UART_BUFFER_SIZE se siamo alla fine del buffer. quindi uart_tail+1 
 }
-//
+
+// circular buffer anche per la trasmissione
+void uart_send_char(char c) {
+    int next = (tx_head + 1) % TX_BUFFER_SIZE;
+    while (next == tx_tail);        // aspetta solo se buffer pieno 
+    tx_buffer[tx_head] = c;
+    tx_head = next;
+    IEC0bits.U1TXIE = 1;           // abilita interrupt TX
+}
 
 // Assignment1 functions
 
@@ -213,16 +241,18 @@ bool uart_validate_command(void) { // controllo range dati
     int tens  = command_buffer[4] - '0'; // -'0' serve per convertire facilmente in ASCII 
     int units = command_buffer[5] - '0'; // perche '0' vale 48 e 1 49 ecc, 49-48 = 1;
 
-    int data = tens * 10 + units; 
+    uint8_t data = tens * 10 + units; 
 
     if (command_buffer[1] == 'B'){ // se B allora controllo bandwith
         if (data <8 || data > 15){
             uart_send_string("$ERR,1*");
             return false;}
+        current_bw = data;                  
+        imu_set_bandwidth(data);
     }
     if (command_buffer[1] == 'H'){ // se H controllo HZ
         if (data != 0 && data != 1 && data != 2 && data != 5 && data != 10){
-            uart_send_string("$ERR,2*");
+            uart_send_string("$ERR,2*"); // ho supposto dovesse essere ERR,2 ma chiediamo al professore
             return false;}
             current_hz = data;
     }
