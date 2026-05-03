@@ -4,8 +4,6 @@
 #include <xc.h>
 #include <stdint.h>
 
-extern volatile int blink_enabled;
-
 void led_init(void);
 void led_toggle_ld1(void);
 void led_toggle_ld2(void);

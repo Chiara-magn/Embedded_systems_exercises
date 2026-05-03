@@ -1,8 +1,6 @@
 #include "config.h"
 #include "led_handler.h"
 
-volatile int blink_enabled = 1;
-
 void led_init(void) {
 	
 	LD1_TRIS = 0;   // output led1

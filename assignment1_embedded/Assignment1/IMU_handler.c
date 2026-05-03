@@ -12,26 +12,38 @@ void imu_init(void) {
     GYR_CS_LAT = 1;
     MAG_CS_LAT = 1;
 
-    // check accelerometer ID from datasheet 1111 1010 -> 0xFA
+    // Wake up magnetometro (parte in suspend mode)
+    imu_write_register(IMU_MAG, 0x4B, 0x01);
+    tmr_wait_ms(TIMER1, 10);
+    imu_write_register(IMU_MAG, 0x4C, 0x00);
+    tmr_wait_ms(TIMER1, 10);
+
+    // Debug: leggi tutti e tre i chip ID
     uint8_t ACC_ID = imu_read_chip_id(IMU_ACC);
-    if (ACC_ID != ACC_CHIP_ID) {
+    uint8_t GYR_ID = imu_read_chip_id(IMU_GYR);
+    uint8_t MAG_ID = imu_read_chip_id(IMU_MAG);
+
+/*     char dbg[64];
+    sprintf(dbg, "ACC=0x%02X GYR=0x%02X MAG=0x%02X\r\n", ACC_ID, GYR_ID, MAG_ID);
+    uart_send_string(dbg);  // per debuggare*/
+
+    // check accelerometer ID from datasheet 1111 1010 -> 0xFA
+     if (ACC_ID != ACC_CHIP_ID) {
         uart_send_string("Incorrect accelerometer Chip ID\r\n");
         return;
     }
 
     // check gyroscope ID from datasheet 0000 1111 -> 0x0F
-    uint8_t GYR_ID = imu_read_chip_id(IMU_GYR);
     if (GYR_ID != GYR_CHIP_ID) {
         uart_send_string("Incorrect gyroscope Chip ID\r\n");
         return;
     }
 
     // check magnetometer ID from datasheet -> 0x32
-    uint8_t MAG_ID = imu_read_chip_id(IMU_MAG);
     if (MAG_ID != MAG_CHIP_ID) {
         uart_send_string("Incorrect magnetometer Chip ID\r\n");
         return;
-    }
+    } 
 
     // Se sono tutti corretti, posso procedere
     uart_send_string("All Chip IDs are CORRECT!\r\n");
@@ -64,7 +76,7 @@ void imu_setup(void) {
     SPI1CON1bits.CKE = 1;       // Output data changes on transition from active to idle
     SPI1CON1bits.CKP = 0;       // Idle state for clock is a low level
     SPI1STATbits.SPIEN = 1;     // re-enable SPI
-    tmr_wait_ms(TIMER1, 100);
+    tmr_wait_ms(TIMER2, 100);
 }
 
 void imu_write_register(imu_device_t dev, uint8_t reg, uint8_t value)

@@ -14,8 +14,8 @@ void timer_init(void)
     IEC0bits.T1IE = 0;
 
     // enable interrupts timer3
-    IFS0bits.T3IF = 0;   
-    IEC0bits.T3IE = 1;
+/*     IFS0bits.T3IF = 0;   
+    IEC0bits.T3IE = 1; */
     	
 }
 
@@ -28,7 +28,7 @@ void timer_init(void)
 void __attribute__((interrupt, no_auto_psv)) 
     _T3Interrupt(void) {
     IFS0bits.T3IF = 0;
-    num_int = num_int + 1;  // per il led
+  //  num_int = num_int + 1;  // per il led
 }
 
 // --- ---
@@ -125,6 +125,23 @@ void tmr_wait_ms(int timer, int ms){
                         
                 while(!IFS0bits.T2IF); 
                 IFS0bits.T2IF = 0;      
+            }  
+            break;
+
+        case TIMER3:
+            tmr_setup_period(TIMER3,200);
+            while(ms > 200){
+                   
+                while(!IFS0bits.T3IF); 
+                IFS0bits.T3IF = 0;  
+                
+                ms = ms-200;}
+            
+            if(ms>0){
+                tmr_setup_period(TIMER3,ms);
+                        
+                while(!IFS0bits.T3IF); 
+                IFS0bits.T3IF = 0;      
             }  
             break;
     }

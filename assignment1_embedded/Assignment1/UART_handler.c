@@ -115,12 +115,29 @@ char uart_read_char(void) {
 }
 
 // circular buffer anche per la trasmissione
-void uart_send_char(char c) {
+/* void uart_send_char(char c) {
     int next = (tx_head + 1) % TX_BUFFER_SIZE;
     while (next == tx_tail);        // aspetta solo se buffer pieno 
     tx_buffer[tx_head] = c;
     tx_head = next;
     IEC0bits.U1TXIE = 1;           // abilita interrupt TX
+} */
+
+void uart_send_char(char c) {
+    int next = (tx_head + 1) % TX_BUFFER_SIZE;
+    while (next == tx_tail);
+    tx_buffer[tx_head] = c;
+    tx_head = next;
+    
+    IEC0bits.U1TXIE = 0;          // disabilita momentaneamente
+    if (!U1STAbits.UTXBF) {       // se il registro TX è libero
+        // kickstart: manda il primo byte direttamente
+        if (tx_tail != tx_head) {
+            U1TXREG = tx_buffer[tx_tail];
+            tx_tail = (tx_tail + 1) % TX_BUFFER_SIZE;
+        }
+    }
+    IEC0bits.U1TXIE = 1;          // riabilita, la ISR continuerà da sola
 }
 
 // Assignment1 functions
