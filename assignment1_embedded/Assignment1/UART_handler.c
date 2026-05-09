@@ -2,34 +2,36 @@
 #include "UART_handler.h"
 #include "IMU_handler.h"
 
-volatile int total_chars = 0; 
+volatile int total_chars = 0; // Total characters received (for debugging)
 
-// circular buffer global variables
-static volatile char uart_buffer[UART_BUFFER_SIZE];
-static volatile int uart_head = 0;
-static volatile int uart_tail = 0;
+// circular buffer for reception
+static volatile char uart_buffer[UART_BUFFER_SIZE]; //RX ring buffer
+static volatile int uart_head = 0; // Write index (updated by ISR)
+static volatile int uart_tail = 0; // Read index (updated by main)
 
-// circular buffer transmission
-static volatile char tx_buffer[TX_BUFFER_SIZE];
-static volatile int tx_head = 0;
-static volatile int tx_tail = 0;
+// circular buffer for transmission
+static volatile char tx_buffer[TX_BUFFER_SIZE]; // TX ring buffer
+static volatile int tx_head = 0;  // Write index (updated by main)
+static volatile int tx_tail = 0;  // Read index  (updated by ISR)
 
-// Assigmnent1 variables
-static char command_buffer[UART_COMMAND_BUFFER_SZ];
-static uint8_t i = 0; // counter parsing
-static int current_hz = 10; // default 10 Hz
-static int current_bw = 15;
+// command buffer for parsing
+static char command_buffer[UART_COMMAND_BUFFER_SZ]; //stores incoming command
+static uint8_t i = 0;       // Index into command_buffer
+static int current_hz = 10; // Current $ACC send frequency (default 10 Hz)
+static int current_bw = 15; // Current accelerometer bandwidth (default 15 = 1000 Hz)
 
-// stati per parsing
+/* Parser states for incoming UART commands
+Splits $BW and $HZ cases to avoid accepting invalid values
+ */
 typedef enum {
-    STATE_WAIT_START,   // Aspetto '$'
-    STATE_CMD_TYPE,     // Aspetto B o H
-    STATE_B,            // Aspetto 'B' 
-    STATE_H,            // Aspetto 'H'
-    STATE_COMMA,        // Aspetto ','
-    STATE_DATA1,        // Prima cifra
-    STATE_DATA2,        // Seconda cifra
-    STATE_END           // Aspetto '*'
+    STATE_WAIT_START,  // Waiting for '$'
+    STATE_CMD_TYPE,    // Waiting for 'B' or 'H'
+    STATE_B,           // Received 'B', waiting for 'W'
+    STATE_H,           // Received 'H', waiting for 'Z'
+    STATE_COMMA,       // Waiting for ','
+    STATE_DATA1,       // Waiting for first digit
+    STATE_DATA2,       // Waiting for second digit
+    STATE_END          // Waiting for '*'
 } parser_state_t;
 static parser_state_t state = STATE_WAIT_START;
 // nota: devo dividere i due casi per evitare di ottenere BZ o HW
@@ -38,109 +40,128 @@ static parser_state_t state = STATE_WAIT_START;
 // UART initialization function
 void uart_init(void){
 	
-    TRISDbits.TRISD0 = 0;               // output
-    TRISDbits.TRISD11 = 1;              // input
+    TRISDbits.TRISD0 = 0;               // output D0 -> TX
+    TRISDbits.TRISD11 = 1;              // input D11 -> RX
     
-    RPINR18bits.U1RXR = UART1_RX_RPIN;  // metti UART1 in input sul pin fisico RD11 = RPI75
-    RPOR0bits.RP64R = 1;                // metti in output sul pin RD0 = RP64 quello che ricevi da UART
+    RPINR18bits.U1RXR = UART1_RX_RPIN;  // Map UART1 RX to RPI75 (RD11)
+    RPOR0bits.RP64R   = 1;              // Map UART1 TX to RP64  (RD0)
     
     U1STA = 0x00;                       // reset control and status register
     U1MODE = 0x00;                      // reset mode register
-    U1BRG = 468 ;                       //(72000000/16*9600)-1
-    // Abilita UART1
-    U1MODEbits.UARTEN = 1;
-    U1STAbits.UTXEN = 1;
+    U1BRG = 468 ;                       // Baud rate setting (72000000/16*9600)-1
+    
+    U1MODEbits.UARTEN = 1;              // Enable UART
+    U1STAbits.UTXEN = 1;                // Enable TX
     
     U1STAbits.URXISEL = 0;              //Interrupt is set on every received character
-    IFS0bits.U1RXIF = 0;
-    IEC0bits.U1RXIE = 1;
+    IFS0bits.U1RXIF   = 0;              // Clear RX interrupt flag
+    IEC0bits.U1RXIE   = 1;              // Enable RX interrupt
 	
 }
+  
+/* 
+UART1 RX interrupt — called every received character, 
+saves it in the circular buffer if there's space, otherwise discards it
 
-// --- UART ISR ---   // chiamata ogni volta che arriva un carattere
+*/
+
 void __attribute__((interrupt, no_auto_psv))
-    _U1RXInterrupt(void) {
-    IFS0bits.U1RXIF = 0;
-    char c = U1RXREG;
+_U1RXInterrupt(void) {
+    IFS0bits.U1RXIF = 0;          // Clear interrupt flag
+    char c = U1RXREG;             // Read received character from hardware register
     total_chars++;
-    int next = (uart_head + 1) % UART_BUFFER_SIZE;   /// avanza head e torna a 0 se buffer finito
-    if (next != uart_tail) {             // buffer pieno se next == tail
-        uart_buffer[uart_head] = c;      // se c'è spazio salva il carattere
-        uart_head = next;
+
+    int next = (uart_head + 1) % UART_BUFFER_SIZE;  // Next write position
+    if (next != uart_tail) {      // If buffer is not full
+        uart_buffer[uart_head] = c;  // Store character
+        uart_head = next;            // Advance write index
     }
-    // altrimenti, se pieno scarta carattere 
+    // If buffer is full: discard character silently
 }
-// ISR per trasmissione con circular buffer
-void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt(void) {
-    IFS0bits.U1TXIF = 0;
-    if (tx_tail != tx_head) {
-        U1TXREG = tx_buffer[tx_tail];
-        tx_tail = (tx_tail + 1) % TX_BUFFER_SIZE;
+
+
+/*
+  UART1 TX interrupt — called when U1TXREG is empty, sends next byte from TX circular buffer
+  Disables itself when buffer is empty. 
+  Replaces while(U1STAbits.UTXBF) that waited for the buffer to be empty,
+  allowing non-blocking transmission.
+
+ */
+
+void __attribute__((interrupt, no_auto_psv))
+_U1TXInterrupt(void) {
+    IFS0bits.U1TXIF = 0;              // Clear interrupt flag
+
+    if (tx_tail != tx_head) {         // If TX buffer has data
+        U1TXREG = tx_buffer[tx_tail]; // Send next character
+        tx_tail = (tx_tail + 1) % TX_BUFFER_SIZE;  // Advance read index
     } else {
-        IEC0bits.U1TXIE = 0;       // niente da mandare, disabilita
+        IEC0bits.U1TXIE = 0;  // Buffer empty: disable TX interrupt
     }
 }
 
-// --- ---
-// Ho quella nuova definita sotto con buffer circolare
-/* void uart_send_char(char c) { 
-    while (U1STAbits.UTXBF);   // aspetta che il buffer TX sia libero
-    U1TXREG = c;               // invio carattere
-} */
 
-void uart_send_string(const char *s) {  // serve per scorrere la stringa
-    while (*s) {                        // finche s punta a caratteri, *s != 0, quando punta a \0, *s vale 0 ed esce dal while
-		uart_send_char(*s);             // richiama l'invio per ogni carattere
-		s++;
+// Send a null-terminated string over UART one character at a time
+void uart_send_string(const char *s) {
+    while (*s) {          // Loop until null terminator '\0'
+        uart_send_char(*s);  // Send one character at a time
+        s++;                 // Advance pointer to next character
     }
 }
 
-// Verifica se qualcosa da leggere
+// Check if RX buffer contains unread characters (returns 1 if available, 0 if empty)
 int uart_available(void) {
-    IEC0bits.U1RXIE = 0;
-    int head = uart_head;
-    IEC0bits.U1RXIE = 1;
-    return (head != uart_tail); // qualche carattere da leggere
+    IEC0bits.U1RXIE = 0;   // Disable RX interrupt to safely read shared variable
+    int head = uart_head;   // Local copy of head
+    IEC0bits.U1RXIE = 1;   // Re-enable RX interrupt
+    return (head != uart_tail);
 }
 
+// Read one character from RX buffer, returns 0 if buffer is empty
 char uart_read_char(void) {
-    IEC0bits.U1RXIE = 0;          // aggiunta protezione per variabile globale
-    int head = uart_head;          // faccio una copia locale per sicurezza
-    IEC0bits.U1RXIE = 1;          
-    if (head == uart_tail) return 0;
+    IEC0bits.U1RXIE = 0;    // Disable RX interrupt to safely read shared variable (could use uart_available here )
+    int head = uart_head;    // Local copy to avoid race conditions
+    IEC0bits.U1RXIE = 1;
 
-    char c = uart_buffer[uart_tail]; // prendo il carattere piu vecchio
-    uart_tail = (uart_tail + 1) % UART_BUFFER_SIZE; // uart tail avanza di 1 se array finito torna a 0 
-    return c;  // (uart_tail+1) = UART_BUFFER_SIZE se siamo alla fine del buffer. quindi uart_tail+1 
+    if (head == uart_tail) return 0;  // Buffer empty
+
+    char c = uart_buffer[uart_tail];  // Read oldest character
+    
+    uart_tail = (uart_tail + 1) % UART_BUFFER_SIZE; 
+    // Advance read index 
+    //and come back to 0 if we reach the end of the buffer 
+    //(ex: uart_tail = 7 → (7+1) % 8 = 0 ) back to the start
+    
+    return c;
 }
 
-// circular buffer anche per la trasmissione
-/* void uart_send_char(char c) {
-    int next = (tx_head + 1) % TX_BUFFER_SIZE;
-    while (next == tx_tail);        // aspetta solo se buffer pieno 
-    tx_buffer[tx_head] = c;
-    tx_head = next;
-    IEC0bits.U1TXIE = 1;           // abilita interrupt TX
-} */
+/*sends a single character over UART, non-blocking,
+ using the TX circular buffer and enabling the TX interrupt*/  
 
 void uart_send_char(char c) {
-    int next = (tx_head + 1) % TX_BUFFER_SIZE;
-    while (next == tx_tail);
-    tx_buffer[tx_head] = c;
-    tx_head = next;
+    int next = (tx_head + 1) % TX_BUFFER_SIZE; // Calculate next write position
+    while (next == tx_tail);   // Wait if TX buffer is full 
+
+    tx_buffer[tx_head] = c;    // Store character in TX buffer
+    tx_head = next;            // Advance write index          
     
-    IEC0bits.U1TXIE = 0;          // disabilita momentaneamente
-    if (!U1STAbits.UTXBF) {       // se il registro TX è libero
-        // kickstart: manda il primo byte direttamente
-        if (tx_tail != tx_head) {
-            U1TXREG = tx_buffer[tx_tail];
-            tx_tail = (tx_tail + 1) % TX_BUFFER_SIZE;
+    IEC0bits.U1TXIE = 0;          // Disable TX interrupt to safely check if U1TXREG is empty
+    if (!U1STAbits.UTXBF) {       // If hardware TX buffer is empty, 
+        // kickstart transmission by writing first character
+        
+        if (tx_tail != tx_head) { // if buffer has data
+            U1TXREG = tx_buffer[tx_tail];  //send first byte
+            tx_tail = (tx_tail + 1) % TX_BUFFER_SIZE; // Advance read index
         }
     }
-    IEC0bits.U1TXIE = 1;          // riabilita, la ISR continuerà da sola
+    IEC0bits.U1TXIE = 1;          // Re-enable TX interrupt — ISR will send the rest
 }
 
-// Assignment1 functions
+/*
+  State machine parser — reads RX buffer and detects complete commands
+  Valid commands: $BW,xx* and $HZ,yy* (and also values accepted for each)
+  return true if a complete valid-format command was received, false otherwise
+ */
 
 bool uart_command_buffer(void){  // correttezza stringhe
     bool string_ready = false;

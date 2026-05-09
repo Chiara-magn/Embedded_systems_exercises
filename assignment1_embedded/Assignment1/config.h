@@ -5,14 +5,14 @@
 #include "stdlib.h"
 #include "stdio.h"
 
-// UART1
-#define UART1_RX_RPIN   75
-#define UART1_TX_RPIN   64
+// UART1 pin remapping
+#define UART1_RX_RPIN   75   // UART1 RX mapped to RPI75 (RD11, input)
+#define UART1_TX_RPIN   64   // UART1 TX mapped to RP64  (RD0,  output)
 
 // SPI1 pin remapping
-#define SPI1_MISO_RPIN   17     // RA1 = RPI17  
-#define SPI1_MOSI_RPIN   109    // RF13 = RP109
-#define SPI1_SCK_RPIN    108    // RF12 = RP108
+#define SPI1_MISO_RPIN   17   // MISO (SDI1) mapped to RPI17 (RA1,  input)
+#define SPI1_MOSI_RPIN   109  // MOSI (SDO1) mapped to RP109 (RF13, output)
+#define SPI1_SCK_RPIN    108  // SCK1        mapped to RP108 (RF12, output)
 
 // Chip Select
 
@@ -33,10 +33,10 @@
 #define MAG_CHIP_ID    0x32   // letto 0xFF */
 
 // LED
-#define LD1_LAT     LATAbits.LATA0
+#define LD1_LAT     LATAbits.LATA0       // LD1 connected to RA0       
 #define LD1_TRIS    TRISAbits.TRISA0
 
-#define LD2_LAT     LATGbits.LATG9
+#define LD2_LAT     LATGbits.LATG9       // LD2 connected to RG9        
 #define LD2_TRIS    TRISGbits.TRISG9
 
 #endif
