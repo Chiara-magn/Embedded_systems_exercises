@@ -10,27 +10,24 @@
 #define UART1_TX_RPIN   64   // UART1 TX mapped to RP64  (RD0,  output)
 
 // SPI1 pin remapping
-#define SPI1_MISO_RPIN   17   // MISO (SDI1) mapped to RPI17 (RA1,  input)
-#define SPI1_MOSI_RPIN   109  // MOSI (SDO1) mapped to RP109 (RF13, output)
+#define SPI1_MISO_RPIN   17   // MISO        mapped to RPI17 (RA1,  input)
+#define SPI1_MOSI_RPIN   109  // MOSI        mapped to RP109 (RF13, output)
 #define SPI1_SCK_RPIN    108  // SCK1        mapped to RP108 (RF12, output)
 
 // Chip Select
 
-#define ACC_CS_LAT     LATBbits.LATB3
-#define ACC_CS_TRIS    TRISBbits.TRISB3 
-#define ACC_CHIP_ID    0xFA   // letto 0xFD
- 
-#define GYR_CS_LAT     LATBbits.LATB4
-#define GYR_CS_TRIS    TRISBbits.TRISB4 
-#define GYR_CHIP_ID    0x0F   // letto 0x07
+#define ACC_CS_LAT     LATBbits.LATB3   // Accelerometer CS → output latch  (RB3)
+#define ACC_CS_TRIS    TRISBbits.TRISB3 // Accelerometer CS → direction register
+#define ACC_CHIP_ID    0xFA             // Expected chip ID (datasheet: 0xFA, read: 0xFD)
 
-#define MAG_CS_LAT     LATDbits.LATD6 
-#define MAG_CS_TRIS    TRISDbits.TRISD6 
-#define MAG_CHIP_ID    0x32   // letto 0xFF
+#define GYR_CS_LAT     LATBbits.LATB4   // Gyroscope CS → output latch  (RB4)
+#define GYR_CS_TRIS    TRISBbits.TRISB4 // Gyroscope CS → direction register
+#define GYR_CHIP_ID    0x0F             // Expected chip ID (datasheet: 0x0F, read: 0x07)
 
-/* #define MAG_CS_LAT     LATBbits.LATB0 // possibile RB0 
-#define MAG_CS_TRIS    TRISBbits.TRISB0
-#define MAG_CHIP_ID    0x32   // letto 0xFF */
+#define MAG_CS_LAT     LATDbits.LATD6   // Magnetometer CS → output latch  (RD6)
+#define MAG_CS_TRIS    TRISDbits.TRISD6 // Magnetometer CS → direction register
+#define MAG_CHIP_ID    0x32             // Expected chip ID (datasheet: 0x32, read: 0xFF)
+
 
 // LED
 #define LD1_LAT     LATAbits.LATA0       // LD1 connected to RA0       
@@ -41,16 +38,15 @@
 
 #endif
 
-// nota per ricordare: 
-// Fisicamente nella scheda ho i collegamenti segnati e vedo nella SPI1
-// SCK/RF12  -> rimappable pin corrispondente = RP108 
-// MISO/RA1  -> RPI17 -> 
+// SPI1
+// SCK/RF12  -> RP108 
+// MISO/RA1  -> RPI17 
 // MOSI/RF13 -> RP109 
 // SDA/RD9   -> RPI74
 // SCL/RD10  -> RPI73
 
 
-// Nella SPI2
+// SPI2
 // MISO/RG7 -> RPI119
 // MOSI/RG8 -> RP120
 // SCK/RG6  -> RP118

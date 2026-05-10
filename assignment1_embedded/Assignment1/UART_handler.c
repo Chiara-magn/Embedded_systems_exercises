@@ -166,13 +166,13 @@ void uart_send_char(char c) {
 bool uart_command_buffer(void){  
     bool string_ready = false;
 
-    while(uart_available()){
+    while(uart_available()){  // While there are characters in the RX buffer
         char c = uart_read_char();
 
         switch (state){
 
             case STATE_WAIT_START:
-                if (c == '$'){
+                if (c == '$'){ // Command always starts with '$'
                     state = STATE_CMD_TYPE;
                     i = 0;
                     command_buffer[i] = c;
@@ -219,7 +219,7 @@ bool uart_command_buffer(void){
             break;
 
             case STATE_COMMA: 
-                if (c == ',') {
+                if (c == ',') { // Separator between command and data
                     command_buffer[i] = c;
                     i++;
                     state = STATE_DATA1;
@@ -229,8 +229,8 @@ bool uart_command_buffer(void){
                 }
             break;
 
-            case STATE_DATA1: // controllo che siano cifre
-                if (c >= '0' && c <= '9') {
+            case STATE_DATA1: 
+                if (c >= '0' && c <= '9') { //first digit
                     command_buffer[i] = c;
                     i++;
                     state = STATE_DATA2;
@@ -241,7 +241,7 @@ bool uart_command_buffer(void){
             break;
 
             case STATE_DATA2:
-                if (c >= '0' && c <= '9') {
+                if (c >= '0' && c <= '9') { //second digit
                     command_buffer[i] = c;
                     i++;
                     state = STATE_END;
@@ -252,52 +252,67 @@ bool uart_command_buffer(void){
             break;
 
             case STATE_END:
-                if (c == '*') {
+                if (c == '*') { // '*' marks end of command
                     command_buffer[i] = c;
                     i++;
-                    command_buffer[i] = '\0';
+                    command_buffer[i] = '\0'; // Null-terminate the string for easier processing
                     string_ready = true;
                 }
-                state = STATE_WAIT_START;
+                state = STATE_WAIT_START; // Reset for next command
             break;
         }
 
-        // Protezione overflow
+        // Safety: reset if buffer is about to overflow
         if (i >= UART_COMMAND_BUFFER_SZ - 1) {
             i = 0;
             state = STATE_WAIT_START;
         }
 
-        if (string_ready) break; 
+        if (string_ready) break; // Stop reading — process command first
     }
 
     return string_ready;
 }
 
-bool uart_validate_command(void) { // controllo range dati
+/*
+  Validate and apply a parsed command from command_buffer
+  Sends $ERR,1* on invalid values and return true if command was valid and applied, false otherwise.
+  Validates $BW,xx* (8 ≤ xx ≤ 15) and $HZ,yy* (yy ∈ {0,1,2,5,10})
+ */
 
-    int tens  = command_buffer[4] - '0'; // -'0' serve per convertire facilmente in ASCII 
-    int units = command_buffer[5] - '0'; // perche '0' vale 48 e 1 49 ecc, 49-48 = 1;
+bool uart_validate_command(void) { 
+
+    // Convert ASCII digits to integer value
+    // e.g. '1','5' → (1*10)+5 = 15
+    // '0' = 48 in ASCII, so '5'-'0' = 5
+
+    int tens  = command_buffer[4] - '0'; // tens digit
+    int units = command_buffer[5] - '0'; // units digit
 
     uint8_t data = tens * 10 + units; 
 
-    if (command_buffer[1] == 'B'){ // se B allora controllo bandwith
-        if (data <8 || data > 15){
+    if (command_buffer[1] == 'B'){     // $BW command: set bandwidth
+        if (data <8 || data > 15){     // Valid range: 8 to 15
             uart_send_string("$ERR,1*");
             return false;}
-        current_bw = data;                  
-        imu_set_bandwidth(data);
+
+        current_bw = data;       // Update global variable with new bandwidth setting           
+        imu_set_bandwidth(data); // Apply to IMU register
     }
-    if (command_buffer[1] == 'H'){ // se H controllo HZ
+    if (command_buffer[1] == 'H'){     // $HZ command: set frequency
         if (data != 0 && data != 1 && data != 2 && data != 5 && data != 10){
-            uart_send_string("$ERR,2*"); // ho supposto dovesse essere ERR,2 ma chiediamo al professore
+            uart_send_string("$ERR,2*"); // Valid values: 0,1,2,5,10 only
             return false;}
             current_hz = data;
     }
     return true;
 }
 
-// Serve per sapere gli hz correnti senza avere una globale 
+/*
+  Get the current $ACC send frequency
+  return Current frequency in Hz (0 means disabled)
+  It will be used in main loop to determine how often to send $ACC messages based on user command
+ */
 int uart_get_hz(void) {
     return current_hz;
 }
