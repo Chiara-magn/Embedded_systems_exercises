@@ -18,7 +18,6 @@ void uart_send_string(const char *s);
 int uart_available(void);
 char uart_read_char(void);
 
-// Assignment1 functions
 #define UART_COMMAND_BUFFER_SZ 32
 #define TX_BUFFER_SIZE   64 
 bool uart_command_buffer(void);

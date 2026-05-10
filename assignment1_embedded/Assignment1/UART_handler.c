@@ -163,7 +163,7 @@ void uart_send_char(char c) {
   return true if a complete valid-format command was received, false otherwise
  */
 
-bool uart_command_buffer(void){  // correttezza stringhe
+bool uart_command_buffer(void){  
     bool string_ready = false;
 
     while(uart_available()){
